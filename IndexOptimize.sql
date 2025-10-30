@@ -1623,26 +1623,11 @@ BEGIN
                                                       + ' LEFT OUTER JOIN (SELECT partitions.[object_id], partitions.index_id, COUNT(DISTINCT partitions.partition_number) AS partition_count FROM sys.partitions partitions GROUP BY partitions.[object_id], partitions.index_id) IndexPartitions ON partitions.[object_id] = IndexPartitions.[object_id] AND partitions.[index_id] = IndexPartitions.[index_id]'
           END
           IF @PartitionLevel = 'Y' AND @PartitionLimitedMode = 'Y'
-											  BEGIN
-												SET @CurrentCommand = @CurrentCommand + '			LEFT OUTER JOIN (
-                                                    										SELECT partitions.[object_id], partitions.index_id, partitions.partition_number,partitions.partition_id
-                                                    																				     FROM (
-                                                    										SELECT partition.[object_id], partition.index_id, partition.partition_number,partition.partition_id,
-                                                    											   ROW_NUMBER() OVER(PARTITION BY partition.[object_id], partition.index_id ORDER BY partition.partition_number DESC) AS rn
-                                                    										FROM sys.partitions partition
-                                                    										INNER JOIN sys.dm_db_partition_stats ps
-                                                    											ON partition.partition_id = ps.partition_id
-                                                    										WHERE ps.row_count > 0
-                                                    									) partitions
-                                                    									WHERE rn <=' + CAST(@PartitionDataCount AS NVARCHAR(10)) + '
-                                                    									) partitions
-                                                    										ON indexes.[object_id] = partitions.[object_id]
-                                                    										AND indexes.index_id = partitions.index_id'
-                                                    																						  + ' LEFT OUTER JOIN (SELECT partitions.[object_id], partitions.index_id, COUNT(DISTINCT partitions.partition_number) AS partition_count,MAX(CASE WHEN dm_db_partition_stats.row_count > 0 THEN partitions.partition_number END) AS max_data_partition FROM sys.partitions partitions  INNER JOIN sys.dm_db_partition_stats dm_db_partition_stats
-                                                    													  ON partitions.partition_id = dm_db_partition_stats.partition_id GROUP BY partitions.[object_id], partitions.index_id) IndexPartitions ON partitions.[object_id] = IndexPartitions.[object_id] AND partitions.[index_id] = IndexPartitions.[index_id]'
-                                                    											  END
+		   BEGIN
+			 SET @CurrentCommand = @CurrentCommand + ' LEFT OUTER JOIN (SELECT partitions.[object_id], partitions.index_id, partitions.partition_number,partitions.partition_id FROM ( SELECT partition.[object_id], partition.index_id, partition.partition_number,partition.partition_id, ROW_NUMBER() OVER(PARTITION BY partition.[object_id], partition.index_id ORDER BY partition.partition_number DESC) AS rn FROM sys.partitions partition INNER JOIN sys.dm_db_partition_stats dm_db_partition_stats ON partition.partition_id = dm_db_partition_stats.partition_id WHERE dm_db_partition_stats.row_count > 0) partitions WHERE rn <=' + CAST(@PartitionDataCount AS NVARCHAR(10)) + ' ) partitions ON indexes.[object_id] = partitions.[object_id] AND indexes.index_id = partitions.index_id'
+               											+ ' LEFT OUTER JOIN (SELECT partitions.[object_id], partitions.index_id, COUNT(DISTINCT partitions.partition_number) AS partition_count,MAX(CASE WHEN dm_db_partition_stats.row_count > 0 THEN partitions.partition_number END) AS max_data_partition FROM sys.partitions partitions  INNER JOIN sys.dm_db_partition_stats dm_db_partition_stats  ON partitions.partition_id = dm_db_partition_stats.partition_id GROUP BY partitions.[object_id], partitions.index_id) IndexPartitions ON partitions.[object_id] = IndexPartitions.[object_id] AND partitions.[index_id] = IndexPartitions.[index_id]'
+           END
           
-
           SET @CurrentCommand = @CurrentCommand + ' WHERE objects.[type] IN(''U'',''V'')'
                                                     + CASE WHEN @MSShippedObjects = 'N' THEN ' AND objects.is_ms_shipped = 0' ELSE '' END
                                                     + ' AND indexes.[type] IN(1,2,3,4,5,6,7)'
@@ -2538,5 +2523,6 @@ BEGIN
 END
 
 GO
+
 
 
